@@ -1,0 +1,52 @@
+Import-Module webadministration
+
+Set-Location IIS:\AppPools\
+
+$numero = 81
+
+Import-Module ActiveDirectory
+
+$OUName = "Clientes"
+$OUPath = "OU=$OUName,DC=practica,DC=local" 
+
+New-ADOrganizationalUnit -Name $OUName -Path "DC=practica,DC=local"  # Ajusta esto según tu configuración de dominio
+
+
+$ADContainer = "OU=Clientes,DC=practica,DC=local"
+
+foreach ($valor in Get-Content C:\Users\clientes.txt) {
+    $web = New-Item "C:\web\$valor" -ItemType directory -Force
+    "<html>hola $valor</html>" | Out-File "C:\web\$valor\index.html"
+    $Website = New-Website -Name $valor -HostHeader "" -Port $numero -PhysicalPath $web -ApplicationPool "DefaultAppPool"
+    $numero++
+    
+    $userName = "$valor"  # Puedes ajustar el formato del nombre de usuario según tus necesidades
+    # Crear el usuario en Active Directory
+    New-ADUser -Name $userName -SamAccountName $userName -UserPrincipalName "$userName@practica.local" -Path $ADContainer -AccountPassword (ConvertTo-SecureString "Contraseña123" -AsPlainText -Force) -Enabled $true
+}
+
+
+$rutaArchivo = "C:\Windows\system32\inetsrv\config\applicationHost.config"
+
+$contenido = Get-Content $rutaArchivo
+
+$nuevoContenido = $contenido -replace '(<section name="access" overrideModeDefault=.*?)"Deny"', '$1"Allow"'
+$nuevoContenido = $nuevoContenido -replace '(<section name="anonymousAuthentication" overrideModeDefault=.*?)"Deny"', '$1"Allow"'
+$nuevoContenido = $nuevoContenido -replace '(<section name="windowsAuthentication" overrideModeDefault=.*?)"Deny"', '$1"Allow"'
+$nuevoContenido | Set-Content $rutaArchivo
+
+Set-Location IIS:\
+foreach ($valor in Get-Content C:\Users\clientes.txt) {
+    $webPath = "IIS:\Sites\$valor"
+
+   
+Get-WebConfigurationProperty -Filter '/system.webServer/security/authentication/anonymousAuthentication' -Name enabled 
+Get-WebConfigurationProperty -Filter '/system.webServer/security/authentication/windowsAuthentication' -Name enabled 
+
+Set-WebConfigurationProperty -Filter '/system.webServer/security/authentication/anonymousAuthentication' -Name enabled -Value 'false' -PSPath $webPath
+Set-WebConfigurationProperty -Filter '/system.webServer/security/authentication/windowsAuthentication' -Name enabled -Value 'true' -PSPath $webPath
+}
+
+
+
+

@@ -1,0 +1,33 @@
+Add-WindowsFeature AD-Domain-Services -Restart:$false
+
+$IPAddress = "10.202.0.61"
+$SubnetMask = "255.255.255.0"
+$Gateway = "10.202.0.1"
+$InterfaceAlias = (Get-NetAdapter).Name
+
+
+New-NetIPAddress -InterfaceAlias $InterfaceAlias -IPAddress $IPAddress -PrefixLength 24 -DefaultGateway $Gateway
+
+$PrimaryDNS = "127.0.0.1"
+Set-DnsClientServerAddress -InterfaceAlias $InterfaceAlias -ServerAddresses $PrimaryDNS
+
+$securePassword = ConvertTo-SecureString -String "Andel1928" -AsPlainText -Force
+
+Import-Module ADDSDeployment
+Install-ADDSForest `
+-CreateDnsDelegation:$false `
+-DatabasePath "C:\Windows\NTDS" `
+-DomainMode "WinThreshold" `
+-DomainName "practica.local" `
+-DomainNetbiosName "PRACTICA" `
+-ForestMode "WinThreshold" `
+-InstallDns:$true `
+-LogPath "C:\Windows\NTDS" `
+-NoRebootOnCompletion:$false `
+-SysvolPath "C:\Windows\SYSVOL" `
+-Force:$true `
+-SafeModeAdministratorPassword $securePassword
+
+
+Install-WindowsFeature -name Web-Server –IncludeManagementTools -Restart:$false
+Install-WindowsFeature -Name Web-Windows-Auth -Restart:$false
